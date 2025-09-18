@@ -1,0 +1,122 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+gemma_env/
+fine_tune_env/
+
+# MLX specific
+.mlx_cache/
+*.mlx
+
+# Model files
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+models/
+checkpoints/
+adapters/
+gemma_3n/adapters/
+gemma_3n/checkpoints/
+gemma_3n/models/
+
+# Data files
+*.jsonl
+*.json
+*.csv
+*.parquet
+datasets/
+data/
+final_training_dataset/
+gemma_3n/final_training_dataset/
+
+# Logs
+*.log
+logs/
+wandb/
+tensorboard/
+gemma_3n/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# API keys and secrets
+.env.local
+.env.production
+secrets.json
+config.json
+
+# Training outputs
+outputs/
+results/
+experiments/
+gemma_3n/outputs/
+gemma_3n/results/
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# System files
+.fuse_hidden*
+.nfs*
