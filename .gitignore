@@ -58,7 +58,6 @@ gemma_3n/models/
 *.parquet
 datasets/
 data/
-final_training_dataset/
 gemma_3n/final_training_dataset/
 
 # Logs
