@@ -1,0 +1,45 @@
+{
+  "creation_timestamp": "20250702_013138",
+  "total_records": 8652,
+  "high_quality_records": 3753,
+  "quality_threshold": 0.7,
+  "quality_stats": {
+    "count": 8652,
+    "mean": 0.6755316689782709,
+    "min": 0.5,
+    "max": 1.0
+  },
+  "complexity_distribution": {
+    "medium": 8564,
+    "complex": 88
+  },
+  "length_stats": {
+    "total_characters": 8110425,
+    "total_words": 922821,
+    "avg_characters": 937.4046463245493,
+    "avg_words": 106.65984743411929
+  },
+  "source_files_stats": {
+    "consolidated_qa_dataset_20250626_144138.jsonl": {
+      "total_records": 8545,
+      "processed_records": 8545,
+      "duplicates_removed": 0
+    },
+    "test_qa_from_10000_20250627_091403.jsonl": {
+      "total_records": 99,
+      "processed_records": 99,
+      "duplicates_removed": 0
+    },
+    "consolidated_qa_dataset_20250625_233044.jsonl": {
+      "total_records": 8500,
+      "processed_records": 8,
+      "duplicates_removed": 8492
+    }
+  },
+  "output_files": {
+    "full_dataset": "final_training_dataset/kazakh_law_qa_full_20250702_013138.jsonl",
+    "high_quality_dataset": "final_training_dataset/kazakh_law_qa_high_quality_20250702_013138.jsonl",
+    "simple_format": "final_training_dataset/kazakh_law_qa_simple_20250702_013138.jsonl",
+    "csv_analysis": "final_training_dataset/kazakh_law_qa_analysis_20250702_013138.csv"
+  }
+}

@@ -58,7 +58,12 @@ gemma_3n/models/
 *.parquet
 datasets/
 data/
-gemma_3n/final_training_dataset/
+# Allow final_training_dataset (needed for remote training)
+!final_training_dataset/
+!final_training_dataset/*.jsonl
+!final_training_dataset/*.json
+!final_training_dataset/*.csv
+!final_training_dataset/README.md
 
 # Logs
 *.log
