@@ -4,6 +4,43 @@ Fine-tune Gemma 3 4B on Kazakh Law QA dataset using QLoRA
 Optimized for Mac M1 Pro with 16GB RAM
 """
 
+import os
+import sys
+
+# Force use only GPU 0 (RTX 4070) on multi-GPU systems
+# Must be set BEFORE importing torch
+if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+# Workaround for MLX import error on non-Mac systems
+if sys.platform != 'darwin':
+    # Disable MLX check in transformers
+    os.environ['TRANSFORMERS_NO_MLX'] = '1'
+    
+    # Create proper mock modules with proper __spec__
+    import types
+    import importlib.machinery
+    
+    # Create spec for mlx
+    mlx_spec = importlib.machinery.ModuleSpec('mlx', None)
+    mlx_module = types.ModuleType('mlx')
+    mlx_module.__spec__ = mlx_spec
+    mlx_module.__version__ = '0.0.0'
+    mlx_module.__path__ = []
+    sys.modules['mlx'] = mlx_module
+    
+    # Create spec for mlx.core with array class
+    mlx_core_spec = importlib.machinery.ModuleSpec('mlx.core', None)
+    mlx_core = types.ModuleType('mlx.core')
+    mlx_core.__spec__ = mlx_core_spec
+    
+    # Add dummy array class that transformers checks for
+    class MLXArray:
+        pass
+    mlx_core.array = MLXArray
+    
+    sys.modules['mlx.core'] = mlx_core
+
 import json
 import torch
 from datasets import Dataset
@@ -12,14 +49,21 @@ from transformers import (
     AutoModelForCausalLM,
     TrainingArguments,
     Trainer,
-    DataCollatorForLanguageModeling
+    DataCollatorForSeq2Seq
 )
 from peft import LoraConfig, get_peft_model, TaskType
-import os
 
-# Check if MPS is available
-device = "mps" if torch.backends.mps.is_available() else "cpu"
+# Check device availability (CUDA for Linux, MPS for Mac, CPU as fallback)
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+else:
+    device = "cpu"
 print(f"Using device: {device}")
+if device == "cuda":
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
 
 def load_jsonl_dataset(file_path):
     """Load JSONL dataset"""
@@ -41,20 +85,19 @@ def preprocess_dataset(data, tokenizer, max_length=1024):
         formatted_text = format_prompt(item['instruction'], item['output'])
         formatted_texts.append(formatted_text)
     
-    # Tokenize
+    # Tokenize without converting to tensors (DataCollator will handle padding)
     tokenized = tokenizer(
         formatted_texts,
         truncation=True,
         padding=False,
         max_length=max_length,
-        return_tensors="pt"
     )
     
-    # Create dataset
+    # Create dataset with labels = input_ids for causal LM
     dataset = Dataset.from_dict({
         "input_ids": tokenized["input_ids"],
         "attention_mask": tokenized["attention_mask"],
-        "labels": tokenized["input_ids"].clone()  # For causal LM, labels = input_ids
+        "labels": tokenized["input_ids"]  # For causal LM
     })
     
     return dataset
@@ -72,16 +115,13 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
-    # Load model with reduced precision for Mac
+    # Load model with reduced precision on CPU first
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.float16,
-        device_map="auto" if device == "mps" else None,
-        low_cpu_mem_usage=True
+        low_cpu_mem_usage=True,
+        attn_implementation="eager"  # Required for Gemma3
     )
-    
-    if device == "cpu":
-        model = model.to(device)
     
     print("Setting up LoRA configuration...")
     
@@ -96,9 +136,14 @@ def main():
         bias="none",
     )
     
-    # Apply LoRA to model
+    # Apply LoRA to model BEFORE moving to GPU
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
+    
+    # Move model to device AFTER applying LoRA
+    if device != "cpu":
+        print(f"Moving model to {device}...")
+        model = model.to(device)
     
     print("Loading and preprocessing dataset...")
     
@@ -114,12 +159,17 @@ def main():
     
     print("Setting up training arguments...")
     
-    # Training arguments optimized for Mac M1 Pro
+    # Training arguments optimized for available hardware
+    # RTX 4070 12GB can handle batch_size=2 with Gemma 1B
+    batch_size = 2 if device == "cuda" else 1
+    grad_accum = 4 if device == "cuda" else 4  # Effective batch = 8
+    pin_memory = True if device == "cuda" else False
+    
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=3,
-        per_device_train_batch_size=1,  # Small batch size for 16GB RAM
-        gradient_accumulation_steps=4,   # Effective batch size = 4
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=grad_accum,
         learning_rate=2e-4,
         weight_decay=0.01,
         logging_steps=10,
@@ -128,16 +178,17 @@ def main():
         warmup_steps=50,
         lr_scheduler_type="cosine",
         fp16=True,  # Use mixed precision
-        dataloader_pin_memory=False,  # Disable for Mac
+        dataloader_pin_memory=pin_memory,
         remove_unused_columns=False,
-        report_to=None,  # Disable wandb/tensorboard for simplicity
-        gradient_checkpointing=True,  # Save memory
+        report_to=[],  # Disable wandb/tensorboard
+        gradient_checkpointing=False,  # Disabled - conflicts with LoRA in some setups
     )
     
-    # Data collator
-    data_collator = DataCollatorForLanguageModeling(
+    # Data collator for seq2seq (handles padding properly for causal LM with labels)
+    data_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
-        mlm=False,  # Causal LM
+        model=model,
+        padding=True,
     )
     
     print("Starting training...")
@@ -173,7 +224,7 @@ def main():
             return_tensors="pt"
         )
         
-        if device == "mps":
+        if device in ["cuda", "mps"]:
             inputs = {k: v.to(device) for k, v in inputs.items()}
         
         outputs = model.generate(
