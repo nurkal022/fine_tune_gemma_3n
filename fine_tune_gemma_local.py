@@ -140,6 +140,9 @@ def main():
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
     
+    # Enable gradient checkpointing for LoRA compatibility
+    model.enable_input_require_grads()
+    
     # Move model to device AFTER applying LoRA
     if device != "cpu":
         print(f"Moving model to {device}...")
@@ -181,7 +184,8 @@ def main():
         dataloader_pin_memory=pin_memory,
         remove_unused_columns=False,
         report_to=[],  # Disable wandb/tensorboard
-        gradient_checkpointing=False,  # Disabled - conflicts with LoRA in some setups
+        gradient_checkpointing=True,  # Required for LoRA to work properly
+        gradient_checkpointing_kwargs={"use_reentrant": False}  # Use non-reentrant checkpointing
     )
     
     # Data collator for seq2seq (handles padding properly for causal LM with labels)
